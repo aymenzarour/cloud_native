@@ -1,4 +1,6 @@
 ---
+# Playbook principal pour l'installation
+
 - name: Déployer les outils Cloud Native
   hosts: localhost
   gather_facts: no
@@ -13,94 +15,8 @@
       ansible.builtin.debug:
         var: context.stdout
 
-# --- NOUVELLE PARTIE : INSTALLER LONGHORN ---
-- name: Déployer Longhorn (Stockage)
-  hosts: localhost
-  gather_facts: no
+# Importer le playbook Longhorn
+- import_playbook: playbooks/longhorn.yaml
 
-  tasks:
-    - name: "S'assurer que le namespace 'longhorn-system' existe"
-      kubernetes.core.k8s:
-        name: longhorn-system
-        api_version: v1
-        kind: Namespace
-        state: present
-
-    - name: "Ajouter le Chart Repo de Longhorn"
-      kubernetes.core.helm_repository:
-        name: longhorn
-        repo_url: https://charts.longhorn.io
-        state: present
-
-    - name: "Déployer Longhorn depuis le Chart Helm"
-      kubernetes.core.helm:
-        name: longhorn
-        chart_ref: longhorn/longhorn
-        release_namespace: longhorn-system
-        state: present
-        wait: true # Attendre que le déploiement soit terminé
-        timeout: 600s # 10 minutes
-- name: Déployer ArgoCD (GitOps)
-  hosts: localhost
-  gather_facts: no
-
-  tasks:
-    - name: "S'assurer que le namespace 'argocd' existe"
-      kubernetes.core.k8s:
-        name: argocd
-        api_version: v1
-        kind: Namespace
-        state: present
-
-    - name: "Ajouter le Chart Repo d'Argo"
-      kubernetes.core.helm_repository:
-        name: argo
-        repo_url: https://argoproj.github.io/argo-helm
-        state: present
-
-    - name: "Nettoyage : Supprimer les anciens CRDs ArgoCD (s'ils existent)"
-      kubernetes.core.k8s:
-        state: absent
-        api_version: apiextensions.k8s.io/v1
-        kind: CustomResourceDefinition
-        name: "{{ item }}"
-      loop:
-        - applications.argoproj.io
-        - appprojects.argoproj.io
-        - applicationsets.argoproj.io
-      ignore_errors: true
-
-    # --- TÂCHE DE NETTOYAGE SUPPLÉMENTAIRE AJOUTÉE ---
-    - name: "Nettoyage : Supprimer les anciens ClusterRoles ArgoCD (s'ils existent)"
-      kubernetes.core.k8s:
-        state: absent
-        api_version: rbac.authorization.k8s.io/v1
-        kind: ClusterRole
-        name: "{{ item }}"
-      loop:
-        - argocd-application-controller # Celui de l'erreur
-        - argocd-server
-        - argocd-cluster-role-binding # Nom probable pour le suivant
-        - argocd-application-controller-binding # Nom probable
-      ignore_errors: true
-
-    # --- TÂCHE DE NETTOYAGE 3 (Juste au cas où) ---
-    - name: "Nettoyage : Supprimer les anciens ClusterRoleBindings ArgoCD"
-      kubernetes.core.k8s:
-        state: absent
-        api_version: rbac.authorization.k8s.io/v1
-        kind: ClusterRoleBinding
-        name: "{{ item }}"
-      loop:
-        - argocd-application-controller
-        - argocd-server
-      ignore_errors: true
-
-    - name: "Déployer ArgoCD depuis le Chart Helm"
-      kubernetes.core.helm:
-        name: argocd
-        chart_ref: argo/argo-cd
-        release_namespace: argocd
-        state: present
-        wait: true
-        timeout: 600s
+# Importer le playbook ArgoCD
+- import_playbook: playbooks/argocd.yaml
